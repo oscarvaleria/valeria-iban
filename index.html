@@ -1,14 +1,28 @@
-
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Sube Captura - Extrae DNI e IBAN</title>
+  <title>Upload Screenshot - Extract DNI & IBAN</title>
+  <style>
+    #custom-upload {
+      background: #eee;
+      padding: 6px 12px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      cursor: pointer;
+      display: inline-block;
+      margin-right: 10px;
+    }
+    #imageInput {
+      display: none;
+    }
+  </style>
 </head>
 <body>
-  <h2>Sube tu captura</h2>
+  <h2>Upload your screenshot</h2>
+  <label id="custom-upload" for="imageInput">Select file</label>
   <input type="file" id="imageInput" accept="image/*" />
-  <button onclick="processImage()">Procesar Imagen</button>
+  <button onclick="processImage()">Process Image</button>
   <pre id="output"></pre>
 
   <script>
@@ -16,7 +30,7 @@
       const fileInput = document.getElementById("imageInput");
       const file = fileInput.files[0];
 
-      if (!file) return alert("Por favor, sube una imagen");
+      if (!file) return alert("Please upload an image");
 
       const reader = new FileReader();
       reader.onloadend = async () => {
@@ -41,23 +55,18 @@
         const visionData = await visionResponse.json();
         const fullText = visionData.responses[0]?.fullTextAnnotation?.text || "";
 
-        // REGEX para IBAN y DNI
         const ibanMatch = fullText.match(/ES\d{2}\s?\d{4}\s?\d{4}\s?\d{4}\s?\d{4}\s?\d{4}/);
         const dniMatch = fullText.match(/\b(?:\d{8}[A-Z]|[XYZ]\d{7}[A-Z])\b/);
 
-        // Limpieza de espacios
-        const iban = ibanMatch ? ibanMatch[0].replace(/\s+/g, '').trim() : "No encontrado";
-        const dni = dniMatch ? dniMatch[0].trim() : "No encontrado";
+        const iban = ibanMatch ? ibanMatch[0].replace(/\s+/g, '').trim() : "Not found";
+        const dni = dniMatch ? dniMatch[0].trim() : "Not found";
 
-        // Mostrar para depuración
-        console.log(`IBAN limpio: [${iban}]`);
-        console.log(`DNI limpio: [${dni}]`);
+        console.log(`Clean IBAN: [${iban}]`);
+        console.log(`Clean DNI: [${dni}]`);
 
-        // Mostrar en pantalla con delimitadores
         document.getElementById("output").textContent =
-          `Texto detectado:\n\n${fullText}\n\n>> IBAN: [${iban}]\n>> DNI: [${dni}]`;
+          `Detected text:\n\n${fullText}\n\n>> IBAN: [${iban}]\n>> DNI: [${dni}]`;
 
-        // Enviar al webhook de producción de n8n
         await fetch("https://valeriahr.app.n8n.cloud/webhook/ocr-banc", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
