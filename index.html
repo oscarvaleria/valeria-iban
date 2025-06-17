@@ -1,0 +1,72 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Sube Captura - Extrae DNI e IBAN</title>
+</head>
+<body>
+  <h2>Sube tu captura</h2>
+  <input type="file" id="imageInput" accept="image/*" />
+  <button onclick="processImage()">Procesar Imagen</button>
+  <pre id="output"></pre>
+
+  <script>
+    async function processImage() {
+      const fileInput = document.getElementById("imageInput");
+      const file = fileInput.files[0];
+
+      if (!file) return alert("Por favor, sube una imagen");
+
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64Image = reader.result.split(',')[1];
+
+        const visionResponse = await fetch(
+          `https://vision.googleapis.com/v1/images:annotate?key=AIzaSyAfBhyUdj_js7hZYDKO75SwHgkM46Lp5-Q`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              requests: [
+                {
+                  image: { content: base64Image },
+                  features: [{ type: "TEXT_DETECTION", maxResults: 1 }],
+                },
+              ],
+            }),
+          }
+        );
+
+        const visionData = await visionResponse.json();
+        const fullText = visionData.responses[0]?.fullTextAnnotation?.text || "";
+
+        // REGEX para IBAN y DNI
+        const ibanMatch = fullText.match(/ES\d{2}\s?\d{4}\s?\d{4}\s?\d{4}\s?\d{4}\s?\d{4}/);
+        const dniMatch = fullText.match(/\b(?:\d{8}[A-Z]|[XYZ]\d{7}[A-Z])\b/);
+
+        // Limpieza de espacios
+        const iban = ibanMatch ? ibanMatch[0].replace(/\s+/g, '').trim() : "No encontrado";
+        const dni = dniMatch ? dniMatch[0].trim() : "No encontrado";
+
+        // Mostrar para depuración
+        console.log(`IBAN limpio: [${iban}]`);
+        console.log(`DNI limpio: [${dni}]`);
+
+        // Mostrar en pantalla con delimitadores
+        document.getElementById("output").textContent =
+          `Texto detectado:\n\n${fullText}\n\n>> IBAN: [${iban}]\n>> DNI: [${dni}]`;
+
+        // Enviar al webhook de producción de n8n
+        await fetch("https://valeriahr.app.n8n.cloud/webhook/ocr-banc", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ iban, dni }),
+        });
+      };
+
+      reader.readAsDataURL(file);
+    }
+  </script>
+</body>
+</html>
