@@ -68,10 +68,11 @@
           `Detected text:\n\n${fullText}\n\n>> IBAN: [${iban}]\n>> DNI: [${dni}]`;
 
         await fetch("https://valeriahr.app.n8n.cloud/webhook/ocr-banc", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ iban, dni }),
-        });
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ iban, dni, text: fullText }),  // <- NUEVO
+});
+
       };
 
       reader.readAsDataURL(file);
