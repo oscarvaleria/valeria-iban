@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>Upload Files - Extract DNI, IBAN & Full Name</title>
+  <meta charset="UTF-8" />
+  <title>Subida de archivos - Extraer IBAN</title>
   <style>
     #custom-upload {
       background: #eee;
@@ -20,60 +20,104 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
 </head>
 <body>
-  <h2>Upload screenshots or PDFs</h2>
-  <label id="custom-upload" for="imageInput">Select files</label>
-  <input type="file" id="imageInput" accept="image/*,.pdf" multiple />
-  <button onclick="processImage()">Process Files</button>
+  <h2>Sube un documento bancario</h2>
+
+  <form id="uploadForm">
+    <label for="empresa">Selecciona la empresa:</label><br/>
+    <select id="empresa" name="empresa" required>
+      <option value="">--Selecciona--</option>
+      <option>AP VENTURE 1 SL</option>
+      <option>Jarvis24 SL</option>
+      <option>RENT A RIDER, S.L.</option>
+      <option>LA TREMENDA BROTHERS, S.L.</option>
+      <option>KAMUTA, S.L.</option>
+      <option>EL TARANTÍN CHIFLADO, S.L</option>
+      <option>Alopeke, S.L.</option>
+      <option>Capos Consulting Group SL</option>
+      <option>Pideya SL</option>
+      <option>Tepuy on Road SL</option>
+      <option>Umbrella Sociedad de Hamburguesas SL</option>
+      <option>Tepuy Gocho SL</option>
+      <option>TEPUY BURGER SL</option>
+      <option>Tepuy Bazán SL</option>
+      <option>ABC</option>
+      <option>GRATEFUL HEAL7HY FOOD2, S.L</option>
+      <option>DEMOS - LAPSA IA, SL</option>
+      <option>LAPSA IA, SL</option>
+    </select>
+    <br/><br/>
+
+    <label id="custom-upload" for="imageInput">Selecciona archivo</label>
+    <input type="file" id="imageInput" accept="image/*,.pdf" required />
+    <br/><br/>
+
+    <button type="button" onclick="processFiles()">Procesar y enviar</button>
+  </form>
+
   <pre id="output"></pre>
 
   <script>
-    async function processImage() {
+    async function processFiles() {
+      const empresa = document.getElementById("empresa").value;
       const fileInput = document.getElementById("imageInput");
-      const files = Array.from(fileInput.files);
+      const file = fileInput.files[0];
 
-      if (!files.length) return alert("Please upload at least one file");
+      if (!empresa) return alert("Selecciona una empresa");
+      if (!file) return alert("Sube un archivo");
 
-      const allItems = [];
+      let fullText = "";
 
-      for (const file of files) {
-        if (file.type === "application/pdf") {
-          const pdf = await pdfjsLib.getDocument(URL.createObjectURL(file)).promise;
-          for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-            const page = await pdf.getPage(pageNum);
-            const viewport = page.getViewport({ scale: 2.0 });
-            const canvas = document.createElement("canvas");
-            const context = canvas.getContext("2d");
-            canvas.width = viewport.width;
-            canvas.height = viewport.height;
-            await page.render({ canvasContext: context, viewport }).promise;
-            const dataUrl = canvas.toDataURL("image/png");
-            const result = await extractDataFromImage(dataUrl);
-            allItems.push(result);
-          }
-        } else {
-          const reader = new FileReader();
-          await new Promise((resolve) => {
-            reader.onloadend = async () => {
-              const dataUrl = reader.result;
-              const result = await extractDataFromImage(dataUrl);
-              allItems.push(result);
-              resolve();
-            };
-            reader.readAsDataURL(file);
-          });
+      if (file.type === "application/pdf") {
+        const pdf = await pdfjsLib.getDocument(URL.createObjectURL(file)).promise;
+        for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+          const page = await pdf.getPage(pageNum);
+          const viewport = page.getViewport({ scale: 2.0 });
+          const canvas = document.createElement("canvas");
+          const context = canvas.getContext("2d");
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          await page.render({ canvasContext: context, viewport }).promise;
+          const dataUrl = canvas.toDataURL("image/png");
+          fullText += await extractTextFromImage(dataUrl);
         }
+      } else {
+        const reader = new FileReader();
+        await new Promise((resolve) => {
+          reader.onloadend = async () => {
+            const dataUrl = reader.result;
+            fullText = await extractTextFromImage(dataUrl);
+            resolve();
+          };
+          reader.readAsDataURL(file);
+        });
       }
 
-      document.getElementById("output").textContent = JSON.stringify(allItems, null, 2);
+      const normalizedText = fullText.replace(/\s+/g, ' ').toUpperCase();
+
+      // Extraer IBAN
+      const ibanRawMatch = normalizedText.match(/ES[\d\s\-]{20,}/i);
+      const iban = ibanRawMatch
+        ? ibanRawMatch[0].replace(/[^A-Z0-9]/gi, '').trim()
+        : "Not found";
+
+      const payload = {
+        empresa,
+        iban,
+        fullText
+      };
+
+      document.getElementById("output").textContent = JSON.stringify(payload, null, 2);
 
       await fetch("https://valeriahr.app.n8n.cloud/webhook/ocr-banc", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(allItems),
+        body: JSON.stringify(payload),
       });
+
+      alert("Datos enviados correctamente");
     }
 
-    async function extractDataFromImage(dataUrl) {
+    async function extractTextFromImage(dataUrl) {
       const base64Image = dataUrl.split(',')[1];
 
       const visionResponse = await fetch(
@@ -93,38 +137,11 @@
       );
 
       const visionData = await visionResponse.json();
-      const fullText = visionData.responses[0]?.fullTextAnnotation?.text || "";
-
-      // Normalizar texto para facilitar búsqueda
-      const normalizedText = fullText.replace(/\s+/g, ' ').toUpperCase();
-
-      // Extraer IBAN
-      const ibanRawMatch = normalizedText.match(/ES[\d\s\-]{20,}/i);
-      const iban = ibanRawMatch
-        ? ibanRawMatch[0].replace(/[^A-Z0-9]/gi, '').trim()
-        : "Not found";
-
-      // Extraer DNI/NIE (tolerante a espacios)
-      const dniMatch = normalizedText.match(/\b([XYZ]?\s*\d{7,8}\s*[A-Z])\b/);
-      const dni = dniMatch
-        ? dniMatch[1].replace(/\s+/g, '').toUpperCase()
-        : "Not found";
-
-      // Extraer nombre completo tras "titular a D." o similares
-      let fullName = "Not found";
-      const nameMatch = normalizedText.match(/TITULAR(?:IDAD)?(?:.*?)D[\.ª]?\s+([A-ZÁÉÍÓÚÑ]+\s+[A-ZÁÉÍÓÚÑ]+\s+[A-ZÁÉÍÓÚÑ]+)/);
-      if (nameMatch) {
-        fullName = nameMatch[1].trim();
-      }
-
-      return {
-        iban,
-        dni,
-        fullName
-      };
+      return visionData.responses[0]?.fullTextAnnotation?.text || "";
     }
   </script>
 </body>
 </html>
+
 
 
