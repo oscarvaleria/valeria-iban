@@ -55,10 +55,13 @@
         const visionData = await visionResponse.json();
         const fullText = visionData.responses[0]?.fullTextAnnotation?.text || "";
 
-        const ibanMatch = fullText.match(/ES\d{2}\s?\d{4}\s?\d{4}\s?\d{4}\s?\d{4}\s?\d{4}/);
-        const dniMatch = fullText.match(/\b(?:\d{8}[A-Z]|[XYZ]\d{7}[A-Z])\b/);
+        // ✅ Nuevo regex compatible con guiones, espacios o juntos
+        const ibanRawMatch = fullText.match(/ES[\d\s\-]{20,}/i);
+        const iban = ibanRawMatch
+          ? ibanRawMatch[0].replace(/[^A-Z0-9]/gi, '').trim()
+          : "Not found";
 
-        const iban = ibanMatch ? ibanMatch[0].replace(/\s+/g, '').trim() : "Not found";
+        const dniMatch = fullText.match(/\b(?:\d{8}[A-Z]|[XYZ]\d{7}[A-Z])\b/);
         const dni = dniMatch ? dniMatch[0].trim() : "Not found";
 
         console.log(`Clean IBAN: [${iban}]`);
@@ -68,11 +71,10 @@
           `Detected text:\n\n${fullText}\n\n>> IBAN: [${iban}]\n>> DNI: [${dni}]`;
 
         await fetch("https://valeriahr.app.n8n.cloud/webhook/ocr-banc", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ iban, dni, text: fullText }),  // <- NUEVO
-});
-
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ iban, dni, text: fullText }),
+        });
       };
 
       reader.readAsDataURL(file);
@@ -80,3 +82,4 @@
   </script>
 </body>
 </html>
+
