@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Upload Files - Extract DNI & IBAN</title>
+  <title>Upload Files - Extract DNI, IBAN & Full Name</title>
   <style>
     #custom-upload {
       background: #eee;
@@ -66,11 +66,10 @@
 
       document.getElementById("output").textContent = JSON.stringify(allItems, null, 2);
 
-      // ✅ Enviar TODOS los resultados juntos como un array
       await fetch("https://valeriahr.app.n8n.cloud/webhook/ocr-banc", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(allItems), // 👈 Importante: array de objetos
+        body: JSON.stringify(allItems),
       });
     }
 
@@ -96,20 +95,34 @@
       const visionData = await visionResponse.json();
       const fullText = visionData.responses[0]?.fullTextAnnotation?.text || "";
 
+      // Extraer IBAN
       const ibanRawMatch = fullText.match(/ES[\d\s\-]{20,}/i);
       const iban = ibanRawMatch
         ? ibanRawMatch[0].replace(/[^A-Z0-9]/gi, '').trim()
         : "Not found";
 
+      // Extraer DNI
       const dniMatch = fullText.match(/\b(?:\d{8}[A-Z]|[XYZ]\d{7}[A-Z])\b/);
       const dni = dniMatch ? dniMatch[0].trim() : "Not found";
+
+      // Intentar extraer nombre completo
+      let fullName = "Not found";
+      const lines = fullText.split('\n');
+      for (let line of lines) {
+        const nameMatch = line.match(/^([A-ZÁÉÍÓÚÑ]{2,}\s+){1,3}[A-ZÁÉÍÓÚÑ]{2,}$/i);
+        if (nameMatch) {
+          fullName = nameMatch[0].trim();
+          break;
+        }
+      }
 
       return {
         iban,
         dni,
-        text: fullText
+        fullName
       };
     }
   </script>
 </body>
 </html>
+
