@@ -66,11 +66,11 @@
 
       document.getElementById("output").textContent = JSON.stringify(allItems, null, 2);
 
-      // 👉 ENVIAR TODO JUNTO
+      // ✅ Enviar TODOS los resultados juntos como un array
       await fetch("https://valeriahr.app.n8n.cloud/webhook/ocr-banc", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(allItems),
+        body: JSON.stringify(allItems), // 👈 Importante: array de objetos
       });
     }
 
