@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Upload Screenshot - Extract DNI & IBAN</title>
+  <title>Upload Files - Extract DNI & IBAN</title>
   <style>
     #custom-upload {
       background: #eee;
@@ -20,7 +20,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
 </head>
 <body>
-  <h2>Upload your screenshot or PDF</h2>
+  <h2>Upload screenshots or PDFs</h2>
   <label id="custom-upload" for="imageInput">Select files</label>
   <input type="file" id="imageInput" accept="image/*,.pdf" multiple />
   <button onclick="processImage()">Process Files</button>
@@ -33,11 +33,10 @@
 
       if (!files.length) return alert("Please upload at least one file");
 
-      const results = [];
+      const allItems = [];
 
       for (const file of files) {
         if (file.type === "application/pdf") {
-          // 📄 Convert PDF to images
           const pdf = await pdfjsLib.getDocument(URL.createObjectURL(file)).promise;
           for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
             const page = await pdf.getPage(pageNum);
@@ -46,18 +45,18 @@
             const context = canvas.getContext("2d");
             canvas.width = viewport.width;
             canvas.height = viewport.height;
-
             await page.render({ canvasContext: context, viewport }).promise;
             const dataUrl = canvas.toDataURL("image/png");
-            await processSingleImage(dataUrl, results);
+            const result = await extractDataFromImage(dataUrl);
+            allItems.push(result);
           }
         } else {
-          // 🖼️ Process image
           const reader = new FileReader();
           await new Promise((resolve) => {
             reader.onloadend = async () => {
               const dataUrl = reader.result;
-              await processSingleImage(dataUrl, results);
+              const result = await extractDataFromImage(dataUrl);
+              allItems.push(result);
               resolve();
             };
             reader.readAsDataURL(file);
@@ -65,10 +64,17 @@
         }
       }
 
-      document.getElementById("output").textContent = results.join("\n\n---\n\n");
+      document.getElementById("output").textContent = JSON.stringify(allItems, null, 2);
+
+      // 👉 ENVIAR TODO JUNTO
+      await fetch("https://valeriahr.app.n8n.cloud/webhook/ocr-banc", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(allItems),
+      });
     }
 
-    async function processSingleImage(dataUrl, results) {
+    async function extractDataFromImage(dataUrl) {
       const base64Image = dataUrl.split(',')[1];
 
       const visionResponse = await fetch(
@@ -98,15 +104,12 @@
       const dniMatch = fullText.match(/\b(?:\d{8}[A-Z]|[XYZ]\d{7}[A-Z])\b/);
       const dni = dniMatch ? dniMatch[0].trim() : "Not found";
 
-      results.push(`>> IBAN: [${iban}]\n>> DNI: [${dni}]\n\nTexto detectado:\n${fullText}`);
-
-      await fetch("https://valeriahr.app.n8n.cloud/webhook/ocr-banc", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ iban, dni, text: fullText }),
-      });
+      return {
+        iban,
+        dni,
+        text: fullText
+      };
     }
   </script>
 </body>
 </html>
-
