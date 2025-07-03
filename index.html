@@ -67,6 +67,8 @@
       const results = [];
 
       for (const file of files) {
+        const fileName = file.name;
+
         if (file.type === "application/pdf") {
           const pdf = await pdfjsLib.getDocument(URL.createObjectURL(file)).promise;
 
@@ -79,9 +81,8 @@
             const ctx = canvas.getContext("2d");
             await page.render({ canvasContext: ctx, viewport }).promise;
 
-            // Convert canvas to JPEG
             const jpegDataUrl = canvas.toDataURL("image/jpeg", 0.9);
-            const result = await processImageData(jpegDataUrl, empresa);
+            const result = await processImageData(jpegDataUrl, empresa, fileName);
             results.push(result);
           }
         } else {
@@ -89,7 +90,7 @@
           await new Promise((resolve) => {
             reader.onloadend = async () => {
               const dataUrl = reader.result;
-              const result = await processImageData(dataUrl, empresa);
+              const result = await processImageData(dataUrl, empresa, fileName);
               results.push(result);
               resolve();
             };
@@ -109,7 +110,7 @@
       alert("Datos enviados correctamente");
     }
 
-    async function processImageData(dataUrl, empresa) {
+    async function processImageData(dataUrl, empresa, fileName) {
       const base64Image = dataUrl.split(',')[1];
 
       const visionResponse = await fetch(
@@ -137,7 +138,12 @@
         ? ibanMatch[0].replace(/[^A-Z0-9]/gi, '').trim()
         : "Not found";
 
-      return { empresa, iban, fullText };
+      return {
+        empresa,
+        iban,
+        fullText,
+        file_name: fileName
+      };
     }
   </script>
 </body>
